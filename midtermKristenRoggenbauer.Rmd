@@ -1,0 +1,188 @@
+---
+title: "Milwaukee Bucks' Shots - 2001-2020"
+author: "Kristen Roggenbauer"
+font: 12pt
+date: "March 29"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+**Bucks' Shooting Data (2001-2020): An Analysis by Kristen Roggenbauer**
+
+In this report, I will be showing a variety of things involving the Bucks' shooting data:
+
+   - Reveals the shooting data from each game in the 2001 season until the 2020 season (20 years of data).
+   - The coordinates represent 1/10 of a foot, or feet*10.
+   - Overall the percentage of made shots has remained similar, but when split into 2PT or 3PT attempts, the percentages vary.
+   - As time has gone on, more players are attempting 3PT shots, and less are attempting 2PT shots. However, it appears that more who do attempt 2PT shots are dunking.
+```{r setup, include=FALSE}
+#This is what makes it hide all code when knitting
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(nbastatR)
+library(tidyverse)
+library(ggplot2)
+library(png)
+library(ggpubr)
+library(grid)
+library(dplyr)
+library(jpeg)
+```
+
+``` {r, echo=FALSE, cache=TRUE, message=FALSE}
+#Getting the data from the Milwaukee Bucks + Simplifying it to Bucks_Data, which has only needed information
+Sys.setenv(VROOM_CONNECTION_SIZE = 262144)
+
+#Creates a list to put each season of bucks data in in the future
+bucks_data_list <- list()
+
+#List of seasons I want to use
+seasons <- 2001:2020
+#Creates a loop to get all shot data from 2001 to 2020. This downloads a data frame for a season and adds it into a list before downloading a new season's data frame.
+for (season in seasons) {
+    # Redirecting output to NULL to suppress printing - keeps it from printing each data title it downloads
+  capture.output({
+    season_data <- teams_shots(teams = "Milwaukee Bucks", seasons = season) %>%
+      select(yearSeason, locationX, locationY, distanceShot, isShotMade, typeShot)
+    # Puts the season_data tibble into a list in order to store the data before replacing it
+    bucks_data_list[[as.character(season)]] <- season_data
+  }, file = NULL)
+}
+#Making it into a data frame
+combined_bucks_data <- do.call(rbind, bucks_data_list)
+```
+
+```{r}
+#Background image
+imag = readJPEG("Basketballz.jpg")
+
+#Creating the plot
+plot1 = ggplot(data = combined_bucks_data) +
+  #Creates the background image and sizes it accordingly
+  annotation_custom(rasterGrob(imag, width = unit(1, "npc"), height = unit(1, "npc")), xmin = -40, xmax = 880, ymin = -250, ymax = 250) +
+  #Adds the points
+  geom_point(mapping = aes(x = locationY, y = locationX, color = isShotMade), size = 1, alpha=.2) +
+  #Labels the graph axes and title
+  labs(x = "Distance Frop Hoop", y = "Other Location", title = "Bucks 2001-2020 Shots Made vs Missed") +
+  #Colors the points and changes legend
+  scale_color_manual(values = c("TRUE" = "#00461B", "FALSE" = "#702F8A"), name="Attempted Shots",labels=c("Missed", "Made")) +  
+  facet_wrap(~yearSeason) +
+  theme(legend.position = "bottom", legend.box = "horizontal")
+
+
+
+ggsave("plot1.png", plot1, width = 20, height = 15, units = "in", dpi = 300)
+
+```
+
+```{r, echo=FALSE, out.width = '120%'}
+knitr::include_graphics("plot1.png")
+```
+
+**Reading the Graph**
+  
+Each of the small graphs above displays a different year, as indicated by the title of the graphs. The placement of the dots reveals the location of the shots attempted in that year. The dots colored green were made shots, where the dots colored purple were missed shots. Where there are many points, this may get difficult to tell the difference of which shots were made or missed; however, there is still very good data you can see. Where the dots appear to be darker, there are more attempted shots taken, whereas the lighter areas refer to very few shots attempted from there. This allows you to see different trends in attempted shots, though we will delve into this deeper in future sections of this report. 
+
+**What are the Coordinates?**
+
+When looking at the graph, it is very easy to tell which shots were where - it simply corresponds with the background. The background is scaled so that it is easy to see the exact location where each shot took place. However, in the case you would like to find these exact locations in a real basketball court, there is also a coordinate system in place. These coordinates represent 1/10 of a foot, or feet*10. (Example: The coordinate (10, 50) represents 1 foot horizontally, and 5 feet vertically). However, for most purposes, you can simply look at the background to determine where each shot took place.
+
+```{r, results='hide'}
+#Finding trends in the data
+
+#Groups the data by season, then finds the percentage of made shots
+madeShots = combined_bucks_data %>% group_by(yearSeason) %>%
+  summarize(madeShots = sum(isShotMade=="TRUE")/n())
+
+#Finds the percentage of made 2PT and 3PT shots in 2001
+percentMade01 = combined_bucks_data %>% filter(yearSeason==2001) %>%
+  group_by(typeShot) %>%
+  summarize(madePoints01 = sum(isShotMade=="TRUE")/n())
+#Finds the percentage of made 2PT and 3PT shots in 2020
+percentMade20 = combined_bucks_data %>% filter(yearSeason==2020) %>%
+  group_by(typeShot) %>%
+  summarize(madePoints20 = sum(isShotMade=="TRUE")/n())
+#Combines these in order to see the percentages side by side
+combined_tibble <- cbind(select(percentMade01, typeShot, madePoints01),
+                             select(percentMade20, -typeShot)) 
+combined_tibble
+
+#Finding the total of 2PT and 3PT shots in 2001
+percent2PT01 = combined_bucks_data %>% filter(yearSeason==2001) %>%
+  summarize(percent2PT1 = sum(combined_bucks_data$typeShot=="2PT Field Goal")/length(combined_bucks_data$typeShot))
+percent3PT01 = combined_bucks_data %>% filter(yearSeason==2001) %>%
+  summarize(percent3PT1 = sum(combined_bucks_data$typeShot=="3PT Field Goal")/length(combined_bucks_data$typeShot))
+
+#Combining these tibbles
+totalShots01 = cbind(percent2PT01, percent3PT01)
+
+#Finding the total of 2PT and 3PT shots in 2020
+percent2PT20 = combined_bucks_data %>% 
+  filter(yearSeason==2020) %>%
+  summarize(percent2PT20 = sum(typeShot=="2PT Field Goal")/n())
+percent3PT20 = combined_bucks_data %>% 
+  filter(yearSeason==2020) %>%
+  summarize(percent3PT20 = sum(typeShot=="3PT Field Goal")/n())
+
+#Combining these tibbles
+totalShots20 = cbind(percent2PT20, percent3PT20)
+
+#Combining 01 and 20 tibbles
+totalShots = cbind(totalShots01, totalShots20)
+
+totalShots
+```
+
+**Percentage of Made Shots**
+
+The percentages of made shots remained similar through all 20 years. The minimum made shot percentage was about 43%, whereas the highest was about 47%. This shows that overall, the percentage of made shots fluctuated very little over the years, and reveals that the Bucks are a very consistent team when it comes to making shots. However, it appears that while the overall average stayed the same, the average amount of made shots did change. In 2001, 48% of two point attempts were made, while 38% of three point attempts were made. However, in 2020, 56% of two point attempts were made, while only 35% of three point attempts were made. The reason for this is probably due to the attempt amounts, which will be discussed in the next section.
+
+**Two / Three Point Attempts**
+
+The percentages of two point and three point attempts greatly changed over the years. In the graph, it is easily noticed that at the beginning, near 2001, the dots appear more spread out - it seems there are an equal amount of shots close to the hoop. However, when looking at years near the end of the data, such as in 2020, these do not appear equal. Many more appear to be three point attempts, in addition to a greater percentage that seem to be attempting dunks. After calculations, it was found that in 2001, only 24.27% of shot attempts were three point attempts. In contrast, in 2020, 42.78% of shot attempts were three point attempts. Because so many more three point attempts are made now, it decreases the likelihood that these are made. Originally, the only people who would attempt three pointers were those who knew they could commonly make these shots. However, now, more people are attempting, even if they aren't particularly good at three pointers. In addition, many more two point shots are clustered near the hoop, showing that there may be a larger amount of dunks than back in 2001. In my opinion, it is easier to make a dunk shot as you simply need to place the ball into the hoop. If more people are dunking and less are attempting to shoot two point shots, the percentage made will likely increase, as seen in the graph.
+
+
+```{r, eval=FALSE}
+#Finds the percentage of shots made that were 2 PT attempts
+percent_2PT = combined_bucks_data %>%
+  filter(typeShot == "2PT Field Goal") %>%
+  summarize(PT2 = sum(isShotMade) / length(isShotMade))
+
+#Finds the percentage of shots made that were 3 PT attempts
+percent_3PT = combined_bucks_data %>%
+  filter(typeShot == "3PT Field Goal") %>%
+  summarize(PT3 = sum(isShotMade) / length(isShotMade))
+
+#Boths both percentages into the same tibble
+percents = cbind(percent_2PT, percent_3PT)
+
+#Subtracts to get the difference in percentages between 2 point and 3 point shots
+difference = percents$PT2[1] - percents$PT3[1]
+
+#Subtracts difference from the PT3 in order to find percentage of made shots at the 4 pt line
+PT4 = percents$PT3[1] - difference
+
+#Adding the 4 pt percent to the tibble
+percents = cbind(percents, PT4)
+
+#Shortest distance for a 3PT is 22 feet, and is on the ends. I am finding the end data here - which came out to be between 26 and 27 feet. However, this is not possible on the court, as it only goes about 25 feet out from each hoop. However, I still will draw my curve as if it were possible before cutting off the edges
+percent_4PT = combined_bucks_data %>%
+  filter(distanceShot > 26) %>%
+  summarize(percent = sum(isShotMade) / length(isShotMade))
+
+#Assigning 26 feet to this
+distance_hoop_side = 26
+
+#The shortest distance for a 3PT when looking straight at the hoop is 23 feet 9 inches. Because of using 26 feet as the 22 feet marker, I will make sure that 26/22 is equal to the 4 point distance / 23.75 (9/12 = .75). This will be the distance from x = 0. It ended up coming out to 28.068 feet.
+multiplier = 26/22
+distance_long_side = 23.75 * multiplier
+
+#There is also a 14 foot straight line on the sides of the hoop for the 3 point line. I will multiply this by the multiplier again in order to find this distance as well. It ended up coming out to 
+distance_hoop_line = 14 * multiplier
+```
+
+<!-- The 4 point curve will begin 26 feet away from the hoop vertically, which would be coordinates (0, 260) on the graph. It would then extend in a horizontal straight line for 16.55 feet, which would be until coordinates (165.5, 260). Then, it would curve until it hits the vertex where it is 28.07 feet away from the hoop, at coordinates (280.7, 0) -->
